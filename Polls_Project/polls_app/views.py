@@ -1,22 +1,27 @@
+from json.encoder import JSONEncoder
 from django.shortcuts import render, redirect
 from django.http import HttpResponse, response
 from rest_framework.views import APIView
 from .forms import CreatePollForm
 from .models import Poll
+import json
 from rest_framework import mixins
 from rest_framework import generics
 from rest_framework.generics import ListAPIView, ListCreateAPIView
 from .serializers import PollSerializer, VoteViewOptionSerializer, ResultSerializer
 from .models import Poll
-
+import pymongo
+from bson import ObjectId
 # CLASS BASED VIEW
 
-class HomeView(ListCreateAPIView):
+
+class HomeView(generics.ListCreateAPIView):
     serializer_class = PollSerializer
     queryset = Poll.objects.all()
 
+
 class Create(APIView):
-    def get(self,request):
+    def get(self, request):
         form = CreatePollForm()
         context = {
             'form': form
@@ -31,22 +36,21 @@ class Create(APIView):
             return redirect('home')
 
 
+# class Vote(mixins.RetrieveModelMixin, mixins.UpdateModelMixin, generics.GenericAPIView, mixins.ListModelMixin):
 
-class Vote(mixins.RetrieveModelMixin, mixins.UpdateModelMixin,generics.GenericAPIView,mixins.ListModelMixin):
 
-    queryset = Poll.objects.all()
-    serializer_class = VoteViewOptionSerializer
-    lookup_field = 'poll_id'
+#     queryset = Poll.objects.all()
+#     serializer_class = VoteViewOptionSerializer
+#     lookup_field = 'poll_id'
 
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
+#     def get(self, request, *args, **kwargs):
+#         return self.list(request, *args, **kwargs)
 
-    def put(self, request, *args, **kwargs):
-        return self.update(request, *args, **kwargs)
+#     def put(self, request, *args, **kwargs):
+#         return self.update(request, *args, **kwargs)
 
-    def patch(self, request, *args, **kwargs):
-        return self.partial_update(request, *args, **kwargs)
-
+#     def patch(self, request, *args, **kwargs):
+#         return self.partial_update(request, *args, **kwargs)
 
 
 def voted(request, poll_id, option_no):
@@ -64,20 +68,51 @@ def voted(request, poll_id, option_no):
     return redirect('results', poll_id)
 
 
-class Result(mixins.RetrieveModelMixin, mixins.UpdateModelMixin,generics.GenericAPIView,mixins.ListModelMixin):
-    queryset = Poll.objects.all()
-    serializer_class = ResultSerializer
-    lookup_field = 'poll_id'
+# class Result(mixins.RetrieveModelMixin, generics.GenericAPIView, mixins.ListModelMixin):
+#     def get_queryset(self):
+#         return self.help(poll_id=3)
 
-    def get(self, request, *args, **kwargs):
-        return self.list(request, *args, **kwargs)
+#     # queryset = Poll.objects.all()
+#     serializer_class = ResultSerializer
+#     lookup_field = 'poll_id'
 
-    def put(self, request, *args, **kwargs):
-        return self.update(request, *args, **kwargs)
+#     def get(self, request, *args, **kwargs):
+#         return self.list(request, *args, **kwargs)
 
-    def patch(self, request, *args, **kwargs):
-        return self.partial_update(request, *args, **kwargs)
+#     def put(self, request, *args, **kwargs):
+#         return self.update(request, *args, **kwargs)
 
+#     def patch(self, request, *args, **kwargs):
+#         return self.partial_update(request, *args, **kwargs)
+
+#     def help(self, poll_id):
+#         print("getting results from database......")
+#         myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+#         mydb = myclient["polls_app_db"]
+#         mycol = mydb["polls_app_poll"]
+#         myquery = {'id': 1}
+#         mydoc = mycol.find_one(myquery)
+#         print(mydoc)
+
+    # return mydoc
+class JSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, ObjectId):
+            return str(o)
+        return json.JSONEncoder.default(self, o)
+
+
+class Result(APIView):
+
+    def get(self, request, poll_id):
+
+        myclient = pymongo.MongoClient("mongodb://localhost:27017/")
+        mydb = myclient["polls_app_db"]
+        mycol = mydb["polls_app_poll"]
+        myquery = {'id': poll_id}
+        mydoc = mycol.find_one(myquery)
+        final_val_json = JSONEncoder().encode(mydoc)
+        return response.JsonResponse(final_val_json, safe=False)
 
 # ##############################################################################################################################################
 # BELOW IS THE FUNCTION BASED VIEW REPRESENTATION OF THE PROJECT VIEWS
@@ -112,8 +147,6 @@ class Result(mixins.RetrieveModelMixin, mixins.UpdateModelMixin,generics.Generic
 #     return render(request, "poll/create.html", context)
 
 
-
-#
 # def vote(request, poll_id):
 #     poll = Poll.objects.get(pk=poll_id)
 #     if request.method == 'POST':
@@ -135,8 +168,6 @@ class Result(mixins.RetrieveModelMixin, mixins.UpdateModelMixin,generics.Generic
 #     context = {'poll': poll}  # saving data for use in template
 #
 #     return render(request, 'poll/vote.html', context)
-#
-#
 
 
 # def results(request, poll_id):
